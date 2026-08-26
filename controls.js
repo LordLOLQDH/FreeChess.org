@@ -122,6 +122,9 @@ sprite.onload = () => {
         whiteDangerSqrs = [];
         blackDangerSqrs = [];
 
+        let castleMoveMade = false;
+
+        // check for castling movement and if it is, allow castling
         if (canWhiteCastleRightSide(prevSqrIndex, draggedPiece, boardIndex)) {
             isCastle = true;
             whiteRightSideCastle();
@@ -129,6 +132,7 @@ sprite.onload = () => {
             whiteTurn = !whiteTurn;
             playStockFishMove = true;
             audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
         }
         if (canWhiteCastleLeftSide(prevSqrIndex, draggedPiece, boardIndex)) {
             isCastle = true;
@@ -137,6 +141,7 @@ sprite.onload = () => {
             whiteTurn = !whiteTurn;
             playStockFishMove = true;
             audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
         }
         if (canBlackCastleRightSide(prevSqrIndex, draggedPiece, boardIndex)) {
             isCastle = true;
@@ -145,6 +150,7 @@ sprite.onload = () => {
             whiteTurn = !whiteTurn;
             playStockFishMove = false;
             audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
         }
         if (canBlackCastleLeftSide(prevSqrIndex, draggedPiece, boardIndex)) {
             isCastle = true;
@@ -153,17 +159,21 @@ sprite.onload = () => {
             whiteTurn = !whiteTurn;
             playStockFishMove = false;
             audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
         }
+        // -------------------------------------------------------- //
 
-        else if (draggedPiece !== null && possibleSqres.length > 0) {
+        // once we release our piece we want to get its new location and chage it
+        // update the boardArr data and update the game
+        if (!castleMoveMade && draggedPiece !== null && possibleSqres.length > 0) {
             let isCapture = board.boardArr[boardIndex] == 0 ? false : true;
             for (let i = 0; i < possibleSqres.length; i++) {
                 if (boardIndex == possibleSqres[i]) {
-                    capturedPiece = board.boardArr[boardIndex] !== 0 ? board.boardArr[boardIndex] : 0;
+                    capturedPiece = board.boardArr[boardIndex] !== 0 ? board.boardArr[boardIndex] : 0; // if we captured a piece
                     board.boardArr[boardIndex] = draggedPiece;
                     board.boardArr[prevSqrIndex] = 0;
              
-                    whiteTurn = !whiteTurn;
+                    whiteTurn = !whiteTurn; // switch turns
                     halfMoveCount++;
                     fullMoveCount = roundToWhole(halfMoveCount / 2);
 
@@ -171,34 +181,38 @@ sprite.onload = () => {
                     if (whiteTurn == false) playStockFishMove = true;
                     else playStockFishMove = false;
 
-                    if (board.boardArr[boardIndex][1] == 'P') {
-                        pawnsThatHaveMovedPastOnce.push(boardIndex);
+                    if (board.boardArr[boardIndex][1] == 'P') { // if it's a pawn
+                        pawnsThatHaveMovedPastOnce.push(boardIndex); // add it to the list of pawns moved more than once
                     }
+                    // check for castling legality with every king or rook movement!
                     checkWhiteRightCastleLegality(prevSqrIndex, draggedPiece);
                     checkWhiteLeftCastleLegality(prevSqrIndex, draggedPiece);
                     checkBlackRightCastleLegality(prevSqrIndex, draggedPiece);
                     checkBlackLeftCastleLegality(prevSqrIndex, draggedPiece);
 
+                    // check if the king is on check
                     findWhiteDangerSqrs();
                     findBlackDangerSqrs();
 
                     if (whiteTurn == false) {
-                         if(getPossibleMoves(draggedPiece, boardIndex).includes(board.boardArr.indexOf('bK'))) {
+                         // find out if the move the human made is a check
+                        if(getPossibleMoves(draggedPiece, boardIndex).includes(board.boardArr.indexOf('bK'))) {
                             if(isCheck == false) isCheck = true;
                         } else {
                             isCheck = false;
                         }
                         //
-                        if (whiteDangerSqrs.includes(board.boardArr.indexOf('wK'))) {
-                            reverseMovement();
+                        if (whiteDangerSqrs.includes(board.boardArr.indexOf('wK'))) { // if the current square of the wK is among the danger squares
+                            reverseMovement(); // reverse the movement until they have resolved the check
                         }
                     } else {
                         playStockFishMove = false;
-                        if (blackDangerSqrs.includes(board.boardArr.indexOf('bK'))) {
-                            reverseMovement();
+                        if (blackDangerSqrs.includes(board.boardArr.indexOf('bK'))) { // if the current square of the bK is among the danger squares
+                            reverseMovement(); // reverse the movement until they have resolved the check
                         }
                     }
 
+                    // play the right audios
                     if(isCheck == false) {
                         if (isCapture) audio.playAudio(audio.sound.capture);
                         else audio.playAudio(audio.sound.move);
@@ -207,11 +221,13 @@ sprite.onload = () => {
                     }
                 }
             }
+            // if the square were trying to move to isnt part of the possibleMoves
+            // we move back to the prev square
             if (!possibleSqres.includes(boardIndex)) {
                 board.boardArr[prevSqrIndex] = draggedPiece;
             }
             resetMovement();
-        } else if (draggedPiece !== null && possibleSqres.length <= 0) {
+        } else if (draggedPiece !== null && possibleSqres.length <= 0) { // if there are no squares to move to
             board.boardArr[prevSqrIndex] = draggedPiece;
             resetMovement();
         }
