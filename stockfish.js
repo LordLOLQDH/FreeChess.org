@@ -1,66 +1,82 @@
-class Stockfish {
+class StockfishAi {
     constructor() {
+        this.engine = null;
+        this.engineReady = this.initEngine();
         this.isThinking = false;
+    }
+
+    async initEngine() {
+        if (typeof Stockfish !== 'function') {
+            console.error('Stockfish WASM is not loaded.');
+            return false;
+        }
+        try {
+            this.engine = await Stockfish();
+            if (this.engine.ready) await this.engine.ready;
+            this.engine.postMessage('uci');
+            this.engine.postMessage('setoption name Threads value 1');
+            this.engine.postMessage('setoption name Hash value 16');
+            this.engine.postMessage('isready');
+            return true;
+        } catch (error) {
+            console.error('Stockfish initialization failed:', error);
+            this.engine = null;
+            return false;
+        }
     }
 
     async getBestMove(fen) {
         if (this.isThinking) return null;
+        if (!(await this.engineReady) || !this.engine) return null;
+
         this.isThinking = true;
-        try {
-            const endpoint = `https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(fen)}&depth=8`;
-            const response = await fetch(endpoint);
-            if (!response.ok) throw new Error(`Stockfish API HTTP error: ${response.status}`);
-            const data = await response.json();
 
-            if (data.mate == -1) {
-                playerLost = true; playerWon = false; draw = false;
-            } else if (data.mate == 1) {
-                playerWon = true; playerLost = false; draw = false;
-            } else if (data.mate == 0) {
-                playerLost = false; playerWon = false; draw = true;
-            }
+        return new Promise((resolve) => {
+            let done = false;
+            const finish = (move) => {
+                if (done) return;
+                done = true;
+                clearTimeout(timeout);
+                if (this.engine.removeMessageListener) {
+                    this.engine.removeMessageListener(listener);
+                }
+                this.isThinking = false;
+                resolve(move);
+            };
 
-            if (!data.success || typeof data.bestmove !== 'string') {
-                console.error('Stockfish API error:', data.data || data);
-                return null;
-            }
-            return data.bestmove;
-        } catch (error) {
-            console.error('Stockfish error:', error);
-            return null;
-        } finally {
-            this.isThinking = false;
-        }
-    }
+            const timeout = setTimeout(() => {
+                console.error('Stockfish timed out.');
+                finish(null);
+            }, 15000);
 
-    extractBestMove(moveString) {
-        if (!moveString || typeof moveString !== 'string') return null;
-        const match = moveString.match(/bestmove\s+([a-h][1-8][a-h][1-8][qrbn]?)/i);
-        return match ? match[1] : null;
+            const listener = (line) => {
+                if (typeof line !== 'string') return;
+                const match = line.match(/bestmove\s+([a-h][1-8][a-h][1-8][qrbn]?)/i);
+                if (match) finish(match[1]);
+            };
+
+            this.engine.addMessageListener(listener);
+            this.engine.postMessage('stop');
+            this.engine.postMessage(`position fen ${fen}`);
+            this.engine.postMessage('go depth 10');
+        });
     }
 
     async playStockfishMove() {
         if (this.isThinking) return;
 
-        const response = await this.getBestMove(board.convertBoardToFEN());
-        const move = this.extractBestMove(response);
+        const fen = board.convertBoardToFEN();
+        const move = await this.getBestMove(fen);
 
         if (!move) {
-            console.error('No valid move received from Stockfish.');
-            promptUser('Something went wrong :( Please check your connection');
+            console.error('Stockfish did not return a move.');
             return;
         }
 
-        const fromIndex = board.algebraicToIndex(move.substring(0, 2));
-        const piece = board.boardArr[fromIndex];
-
-        if (!piece || !piece.startsWith('b')) {
-            console.error('Invalid Stockfish move:', move);
-            return;
-        }
+        console.log('Stockfish move:', move);
 
         if (!board.applyMove(move)) {
-            console.error('Could not apply Stockfish move:', move);
+            console.error('Invalid Stockfish move:', move);
             return;
         }
 
