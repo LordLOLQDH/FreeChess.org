@@ -11,10 +11,40 @@ sprite.onload = () => {
 
     function getClickedSquare(e) {
         const rect = cvs.getBoundingClientRect();
-        const point = e.changedTouches?.[0] || e.touches?.[0] || e;
+        const point = e.touches?.[0] || e.changedTouches?.[0] || e;
         const x = point.clientX - rect.left;
         const y = point.clientY - rect.top;
         return getBoardIndex(x, y);
+    }
+
+    function drawSelection() {
+        if (selectedPieceIndex === null) return;
+
+        const row = Math.floor(selectedPieceIndex / 8);
+        const col = selectedPieceIndex % 8;
+        const squareSize = cvs.width / 8;
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
+        ctx.lineWidth = 5;
+        ctx.strokeRect(
+            col * squareSize + 2.5,
+            row * squareSize + 2.5,
+            squareSize - 5,
+            squareSize - 5
+        );
+        ctx.restore();
+    }
+
+    function redrawSelection() {
+        ctx.clearRect(0, 0, cvs.width, cvs.height);
+        update();
+
+        if (possibleSqres.length > 0) {
+            highlight(possibleSqres);
+        }
+
+        drawSelection();
     }
 
     function clearSelection() {
@@ -39,9 +69,7 @@ sprite.onload = () => {
         selectedPieceType = piece;
         possibleSqres = getPossibleMoves(piece, index);
 
-        ctx.clearRect(0, 0, cvs.width, cvs.height);
-        update();
-        highlight(possibleSqres);
+        redrawSelection();
         return true;
     }
 
@@ -51,8 +79,8 @@ sprite.onload = () => {
         const fromIndex = selectedPieceIndex;
         const piece = selectedPieceType;
 
+        // Clicking another own piece changes the selection.
         if (!possibleSqres.includes(destinationIndex)) {
-            // Clicking another own piece changes the selection.
             if (selectPiece(destinationIndex)) return;
             return;
         }
@@ -154,24 +182,24 @@ sprite.onload = () => {
     function handleClick(e) {
         e.preventDefault();
         const boardIndex = getClickedSquare(e);
+
         if (boardIndex < 0 || boardIndex >= board.boardArr.length) return;
 
-        // No piece selected: select one.
         if (selectedPieceIndex === null) {
             selectPiece(boardIndex);
             return;
         }
 
-        // Same piece: deselect it.
         if (boardIndex === selectedPieceIndex) {
             clearSelection();
             return;
         }
 
-        // A piece is selected: click a destination square.
         moveSelectedPiece(boardIndex);
     }
 
+    // One click handler works for both mouse and touch.
+    // Do NOT also listen to touchend: mobile browsers fire a click after touchend,
+    // which previously selected and immediately deselected the piece.
     cvs.addEventListener('click', handleClick);
-    cvs.addEventListener('touchend', handleClick, { passive: false });
 };
