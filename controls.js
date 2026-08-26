@@ -1,250 +1,177 @@
 const stockfishAi = new StockfishAi();
 
-let isDrag = false;
-let isDown = false;
-let isUp = true;
-
 let possibleSqres = [];
-let prevSqrIndex = null;
-let draggedPiece = null;
-let capturedPiece = 0;
-
-let isStoreSqr = true;
-
-// Click-Mode variables
 let selectedPieceIndex = null;
 let selectedPieceType = null;
-let isClickMode = false;
 
 sprite.onload = () => {
     board.init();
     update();
     drawBoard();
 
-    function handleDown(e) {
-        isDown = true;
-        isUp = false;
-
+    function getClickedSquare(e) {
         const rect = cvs.getBoundingClientRect();
-        const mouseX = e.touches ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-        const mouseY = e.touches ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-        const boardIndex = getBoardIndex(mouseX, mouseY);
-        const piece = board.boardArr[boardIndex];
-
-        if (piece !== 0 && ((whiteTurn && piece.startsWith('w')) || (!whiteTurn && piece.startsWith('b')))) {
-            if (selectedPieceIndex === null) {
-                selectedPieceIndex = boardIndex;
-                selectedPieceType = piece;
-                possibleSqres = getPossibleMoves(piece, boardIndex);
-                ctx.clearRect(0, 0, cvs.width, cvs.height);
-                update();
-                highlight(possibleSqres);
-                isClickMode = true;
-            } else if (selectedPieceIndex === boardIndex) {
-                selectedPieceIndex = null;
-                selectedPieceType = null;
-                possibleSqres = [];
-                ctx.clearRect(0, 0, cvs.width, cvs.height);
-                update();
-                isClickMode = false;
-            } else {
-                selectedPieceIndex = boardIndex;
-                selectedPieceType = piece;
-                possibleSqres = getPossibleMoves(piece, boardIndex);
-                ctx.clearRect(0, 0, cvs.width, cvs.height);
-                update();
-                highlight(possibleSqres);
-            }
-            return;
-        }
-
-        if (selectedPieceIndex !== null) {
-            handleClickMove(boardIndex);
-            return;
-        }
-
-        if (piece !== 0 && ((whiteTurn && piece.startsWith('w')) || (!whiteTurn && piece.startsWith('b')))) {
-            board.boardArr[boardIndex] = 0;
-            draggedPiece = piece;
-            prevSqrIndex = boardIndex;
-            isStoreSqr = false;
-            possibleSqres = getPossibleMoves(piece, boardIndex);
-            update();
-            highlight(possibleSqres);
-        }
+        const point = e.changedTouches?.[0] || e.touches?.[0] || e;
+        const x = point.clientX - rect.left;
+        const y = point.clientY - rect.top;
+        return getBoardIndex(x, y);
     }
 
-    function handleMove(e) {
-        const rect = cvs.getBoundingClientRect();
-        const mouseX = e.touches ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-        const mouseY = e.touches ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-
-        if (isDown && draggedPiece !== null) {
-            ctx.clearRect(0, 0, cvs.width, cvs.height);
-            update();
-            highlight(possibleSqres);
-            pieces.drawPiece(pieces.type[draggedPiece], [{ x: mouseX - pieces.pieceScale / 2, y: mouseY - pieces.pieceScale / 2 }]);
-        }
+    function clearSelection() {
+        selectedPieceIndex = null;
+        selectedPieceType = null;
+        possibleSqres = [];
+        ctx.clearRect(0, 0, cvs.width, cvs.height);
+        update();
     }
 
-    function handleClickMove(destinationIndex) {
+    function selectPiece(index) {
+        const piece = board.boardArr[index];
+        if (piece === 0) return false;
+
+        const isOwnPiece = whiteTurn
+            ? piece.startsWith('w')
+            : piece.startsWith('b');
+
+        if (!isOwnPiece) return false;
+
+        selectedPieceIndex = index;
+        selectedPieceType = piece;
+        possibleSqres = getPossibleMoves(piece, index);
+
+        ctx.clearRect(0, 0, cvs.width, cvs.height);
+        update();
+        highlight(possibleSqres);
+        return true;
+    }
+
+    function moveSelectedPiece(destinationIndex) {
         if (selectedPieceIndex === null || selectedPieceType === null) return;
 
-        prevSqrIndex = selectedPieceIndex;
-        draggedPiece = selectedPieceType;
-        whiteDangerSqrs = [];
-        blackDangerSqrs = [];
+        const fromIndex = selectedPieceIndex;
+        const piece = selectedPieceType;
+
+        if (!possibleSqres.includes(destinationIndex)) {
+            // Clicking another own piece changes the selection.
+            if (selectPiece(destinationIndex)) return;
+            return;
+        }
+
         let castleMoveMade = false;
 
-        if (canWhiteCastleRightSide(prevSqrIndex, draggedPiece, destinationIndex)) {
-            isCastle = true; whiteRightSideCastle(); whiteTurn = !whiteTurn; playStockFishMove = true; audio.playAudio(audio.sound.move); castleMoveMade = true;
-        }
-        if (canWhiteCastleLeftSide(prevSqrIndex, draggedPiece, destinationIndex)) {
-            isCastle = true; whiteLeftSideCastle(); whiteTurn = !whiteTurn; playStockFishMove = true; audio.playAudio(audio.sound.move); castleMoveMade = true;
-        }
-        if (canBlackCastleRightSide(prevSqrIndex, draggedPiece, destinationIndex)) {
-            isCastle = true; blackRightSideCastle(); whiteTurn = !whiteTurn; playStockFishMove = false; audio.playAudio(audio.sound.move); castleMoveMade = true;
-        }
-        if (canBlackCastleLeftSide(prevSqrIndex, draggedPiece, destinationIndex)) {
-            isCastle = true; blackLeftSideCastle(); whiteTurn = !whiteTurn; playStockFishMove = false; audio.playAudio(audio.sound.move); castleMoveMade = true;
+        whiteDangerSqrs = [];
+        blackDangerSqrs = [];
+
+        if (canWhiteCastleRightSide(fromIndex, piece, destinationIndex)) {
+            isCastle = true;
+            whiteRightSideCastle();
+            whiteTurn = !whiteTurn;
+            playStockFishMove = true;
+            audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
+        } else if (canWhiteCastleLeftSide(fromIndex, piece, destinationIndex)) {
+            isCastle = true;
+            whiteLeftSideCastle();
+            whiteTurn = !whiteTurn;
+            playStockFishMove = true;
+            audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
+        } else if (canBlackCastleRightSide(fromIndex, piece, destinationIndex)) {
+            isCastle = true;
+            blackRightSideCastle();
+            whiteTurn = !whiteTurn;
+            playStockFishMove = false;
+            audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
+        } else if (canBlackCastleLeftSide(fromIndex, piece, destinationIndex)) {
+            isCastle = true;
+            blackLeftSideCastle();
+            whiteTurn = !whiteTurn;
+            playStockFishMove = false;
+            audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
         }
 
-        if (!castleMoveMade && draggedPiece !== null && possibleSqres.includes(destinationIndex)) {
-            const isCapture = board.boardArr[destinationIndex] !== 0;
-            capturedPiece = board.boardArr[destinationIndex] || 0;
-            board.boardArr[destinationIndex] = draggedPiece;
-            board.boardArr[prevSqrIndex] = 0;
+        if (!castleMoveMade) {
+            const capturedPiece = board.boardArr[destinationIndex] || 0;
+            const isCapture = capturedPiece !== 0;
+
+            board.boardArr[destinationIndex] = piece;
+            board.boardArr[fromIndex] = 0;
+
             whiteTurn = !whiteTurn;
             halfMoveCount++;
             fullMoveCount = roundToWhole(halfMoveCount / 2);
             playStockFishMove = !whiteTurn;
 
-            if (board.boardArr[destinationIndex][1] === 'P') pawnsThatHaveMovedPastOnce.push(destinationIndex);
-            checkWhiteRightCastleLegality(prevSqrIndex, draggedPiece);
-            checkWhiteLeftCastleLegality(prevSqrIndex, draggedPiece);
-            checkBlackRightCastleLegality(prevSqrIndex, draggedPiece);
-            checkBlackLeftCastleLegality(prevSqrIndex, draggedPiece);
+            if (piece[1] === 'P') {
+                pawnsThatHaveMovedPastOnce.push(destinationIndex);
+            }
+
+            checkWhiteRightCastleLegality(fromIndex, piece);
+            checkWhiteLeftCastleLegality(fromIndex, piece);
+            checkBlackRightCastleLegality(fromIndex, piece);
+            checkBlackLeftCastleLegality(fromIndex, piece);
+
             findWhiteDangerSqrs();
             findBlackDangerSqrs();
 
             if (!whiteTurn) {
-                isCheck = getPossibleMoves(draggedPiece, destinationIndex).includes(board.boardArr.indexOf('bK'));
+                isCheck = getPossibleMoves(piece, destinationIndex)
+                    .includes(board.boardArr.indexOf('bK'));
+
                 if (whiteDangerSqrs.includes(board.boardArr.indexOf('wK'))) {
-                    board.boardArr[prevSqrIndex] = draggedPiece;
+                    board.boardArr[fromIndex] = piece;
                     board.boardArr[destinationIndex] = capturedPiece;
                     whiteTurn = !whiteTurn;
                     halfMoveCount--;
                     fullMoveCount = roundToWhole(halfMoveCount / 2);
                     playStockFishMove = false;
+                    isCheck = false;
                 }
             } else if (blackDangerSqrs.includes(board.boardArr.indexOf('bK'))) {
-                board.boardArr[prevSqrIndex] = draggedPiece;
+                board.boardArr[fromIndex] = piece;
                 board.boardArr[destinationIndex] = capturedPiece;
                 whiteTurn = !whiteTurn;
                 halfMoveCount--;
                 fullMoveCount = roundToWhole(halfMoveCount / 2);
                 playStockFishMove = false;
+                isCheck = false;
             }
 
-            if (isCheck) audio.playAudio(audio.sound.check);
-            else if (isCapture) audio.playAudio(audio.sound.capture);
-            else audio.playAudio(audio.sound.move);
-        }
-
-        selectedPieceIndex = null;
-        selectedPieceType = null;
-        possibleSqres = [];
-        draggedPiece = null;
-        prevSqrIndex = null;
-        isClickMode = false;
-        ctx.clearRect(0, 0, cvs.width, cvs.height);
-        update();
-    }
-
-    function handleUp(e) {
-        isDown = false;
-        isUp = true;
-        if (isClickMode) return;
-
-        const rect = cvs.getBoundingClientRect();
-        const mouseX = e.changedTouches ? e.changedTouches[0].clientX - rect.left : e.clientX - rect.left;
-        const mouseY = e.changedTouches ? e.changedTouches[0].clientY - rect.top : e.clientY - rect.top;
-        const boardIndex = getBoardIndex(mouseX, mouseY);
-
-        function reverseMovement() {
-            board.boardArr[prevSqrIndex] = draggedPiece;
-            board.boardArr[boardIndex] = capturedPiece;
-            whiteTurn = draggedPiece[0] === 'w';
-            halfMoveCount--;
-            fullMoveCount = roundToWhole(halfMoveCount / 2);
-            playStockFishMove = false;
-        }
-
-        function resetMovement() {
-            draggedPiece = null;
-            possibleSqres = [];
-        }
-
-        whiteDangerSqrs = [];
-        blackDangerSqrs = [];
-        let castleMoveMade = false;
-
-        if (canWhiteCastleRightSide(prevSqrIndex, draggedPiece, boardIndex)) {
-            isCastle = true; whiteRightSideCastle(); resetMovement(); whiteTurn = !whiteTurn; playStockFishMove = true; audio.playAudio(audio.sound.move); castleMoveMade = true;
-        }
-        if (canWhiteCastleLeftSide(prevSqrIndex, draggedPiece, boardIndex)) {
-            isCastle = true; whiteLeftSideCastle(); resetMovement(); whiteTurn = !whiteTurn; playStockFishMove = true; audio.playAudio(audio.sound.move); castleMoveMade = true;
-        }
-        if (canBlackCastleRightSide(prevSqrIndex, draggedPiece, boardIndex)) {
-            isCastle = true; blackRightSideCastle(); resetMovement(); whiteTurn = !whiteTurn; playStockFishMove = false; audio.playAudio(audio.sound.move); castleMoveMade = true;
-        }
-        if (canBlackCastleLeftSide(prevSqrIndex, draggedPiece, boardIndex)) {
-            isCastle = true; blackLeftSideCastle(); resetMovement(); whiteTurn = !whiteTurn; playStockFishMove = false; audio.playAudio(audio.sound.move); castleMoveMade = true;
-        }
-
-        if (!castleMoveMade && draggedPiece !== null) {
-            const isCapture = board.boardArr[boardIndex] !== 0;
-            if (possibleSqres.includes(boardIndex)) {
-                capturedPiece = board.boardArr[boardIndex] || 0;
-                board.boardArr[boardIndex] = draggedPiece;
-                board.boardArr[prevSqrIndex] = 0;
-                whiteTurn = !whiteTurn;
-                halfMoveCount++;
-                fullMoveCount = roundToWhole(halfMoveCount / 2);
-                playStockFishMove = !whiteTurn;
-
-                if (board.boardArr[boardIndex][1] === 'P') pawnsThatHaveMovedPastOnce.push(boardIndex);
-                checkWhiteRightCastleLegality(prevSqrIndex, draggedPiece);
-                checkWhiteLeftCastleLegality(prevSqrIndex, draggedPiece);
-                checkBlackRightCastleLegality(prevSqrIndex, draggedPiece);
-                checkBlackLeftCastleLegality(prevSqrIndex, draggedPiece);
-                findWhiteDangerSqrs();
-                findBlackDangerSqrs();
-
-                if (!whiteTurn) {
-                    isCheck = getPossibleMoves(draggedPiece, boardIndex).includes(board.boardArr.indexOf('bK'));
-                    if (whiteDangerSqrs.includes(board.boardArr.indexOf('wK'))) reverseMovement();
-                } else if (blackDangerSqrs.includes(board.boardArr.indexOf('bK'))) {
-                    reverseMovement();
-                }
-
-                if (isCheck) audio.playAudio(audio.sound.check);
-                else if (isCapture) audio.playAudio(audio.sound.capture);
-                else audio.playAudio(audio.sound.move);
+            if (isCheck) {
+                audio.playAudio(audio.sound.check);
+            } else if (isCapture) {
+                audio.playAudio(audio.sound.capture);
             } else {
-                board.boardArr[prevSqrIndex] = draggedPiece;
+                audio.playAudio(audio.sound.move);
             }
-            resetMovement();
         }
 
-        ctx.clearRect(0, 0, cvs.width, cvs.height);
-        update();
+        clearSelection();
     }
 
-    document.addEventListener('mousedown', handleDown);
-    document.addEventListener('mousemove', handleMove);
-    document.addEventListener('mouseup', handleUp);
-    document.addEventListener('touchstart', handleDown);
-    document.addEventListener('touchmove', handleMove);
-    document.addEventListener('touchend', handleUp);
+    function handleClick(e) {
+        e.preventDefault();
+        const boardIndex = getClickedSquare(e);
+        if (boardIndex < 0 || boardIndex >= board.boardArr.length) return;
+
+        // No piece selected: select one.
+        if (selectedPieceIndex === null) {
+            selectPiece(boardIndex);
+            return;
+        }
+
+        // Same piece: deselect it.
+        if (boardIndex === selectedPieceIndex) {
+            clearSelection();
+            return;
+        }
+
+        // A piece is selected: click a destination square.
+        moveSelectedPiece(boardIndex);
+    }
+
+    cvs.addEventListener('click', handleClick);
+    cvs.addEventListener('touchend', handleClick, { passive: false });
 };
