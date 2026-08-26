@@ -5,7 +5,6 @@ let isDrag = false;
 let isDown = false;
 let isUp = true;
 
-
 let possibleSqres = [];
 let prevSqrIndex = null;
 let draggedPiece = null;
@@ -13,7 +12,10 @@ let capturedPiece = 0; // it's 0 not null cause it will be applied to board.boar
 
 let isStoreSqr = true;
 
-
+// Click-Mode variables
+let selectedPieceIndex = null;
+let selectedPieceType = null;
+let isClickMode = false;
 
 sprite.onload = () => {
     board.init();
@@ -40,19 +42,59 @@ sprite.onload = () => {
 
         let boardIndex = getBoardIndex(mouseX, mouseY);
 
+        // Check if user clicked on a piece
+        if (board.boardArr[boardIndex] !== 0 && (whiteTurn && board.boardArr[boardIndex].startsWith('w')) || (whiteTurn == false && board.boardArr[boardIndex].startsWith('b'))) {
+            // Click-Mode: First click on piece
+            if (selectedPieceIndex === null) {
+                selectedPieceIndex = boardIndex;
+                selectedPieceType = board.boardArr[boardIndex];
+                possibleSqres = getPossibleMoves(selectedPieceType, selectedPieceIndex);
+                
+                ctx.clearRect(0, 0, cvs.width, cvs.height);
+                update();
+                highlight(possibleSqres);
+                isClickMode = true;
+            } else if (selectedPieceIndex === boardIndex) {
+                // Click on same piece again = deselect
+                selectedPieceIndex = null;
+                selectedPieceType = null;
+                possibleSqres = [];
+                ctx.clearRect(0, 0, cvs.width, cvs.height);
+                update();
+                isClickMode = false;
+            } else {
+                // Click on different piece = select new piece
+                selectedPieceIndex = boardIndex;
+                selectedPieceType = board.boardArr[boardIndex];
+                possibleSqres = getPossibleMoves(selectedPieceType, selectedPieceIndex);
+                
+                ctx.clearRect(0, 0, cvs.width, cvs.height);
+                update();
+                highlight(possibleSqres);
+            }
+            return;
+        }
+
+        // If a piece is already selected, this click is a destination
+        if (selectedPieceIndex !== null) {
+            handleClickMove(boardIndex);
+            return;
+        }
+
+        // Drag-Mode logic
         board.boardArr.forEach((sqr, i) => {
             if (sqr !== 0 && i == boardIndex) {
 
                 if ((whiteTurn && sqr.startsWith('w')) || (whiteTurn == false && sqr.startsWith('b'))) {
                     board.boardArr[i] = 0;
                     draggedPiece = sqr;
-                    prevSqrIndex = i;// store prev square index of piece
+                    prevSqrIndex = i;
 
                     isStoreSqr = false;
-                    possibleSqres = getPossibleMoves(sqr, i); // store all possible squares to move
+                    possibleSqres = getPossibleMoves(sqr, i);
 
                     update();
-                    highlight(possibleSqres); // highlight squares AFTER update
+                    highlight(possibleSqres);
                 }
             }
         })
@@ -75,14 +117,138 @@ sprite.onload = () => {
         if (isDown && draggedPiece !== null) {
             ctx.clearRect(0, 0, cvs.width, cvs.height);
             update();
-            highlight(possibleSqres); // redraw highlights
+            highlight(possibleSqres);
             pieces.drawPiece(pieces.type[draggedPiece], [{ x: mouseX - pieces.pieceScale / 2, y: mouseY - pieces.pieceScale / 2 }]);
         }
+    }
+
+    function handleClickMove(destinationIndex) {
+        if (selectedPieceIndex === null || selectedPieceType === null) {
+            return;
+        }
+
+        let boardIndex = destinationIndex;
+        prevSqrIndex = selectedPieceIndex;
+        draggedPiece = selectedPieceType;
+
+        whiteDangerSqrs = [];
+        blackDangerSqrs = [];
+
+        let castleMoveMade = false;
+
+        // check for castling movement and if it is, allow castling
+        if (canWhiteCastleRightSide(prevSqrIndex, draggedPiece, boardIndex)) {
+            isCastle = true;
+            whiteRightSideCastle();
+            whiteTurn = !whiteTurn;
+            playStockFishMove = true;
+            audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
+        }
+        if (canWhiteCastleLeftSide(prevSqrIndex, draggedPiece, boardIndex)) {
+            isCastle = true;
+            whiteLeftSideCastle();
+            whiteTurn = !whiteTurn;
+            playStockFishMove = true;
+            audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
+        }
+        if (canBlackCastleRightSide(prevSqrIndex, draggedPiece, boardIndex)) {
+            isCastle = true;
+            blackRightSideCastle();
+            whiteTurn = !whiteTurn;
+            playStockFishMove = false;
+            audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
+        }
+        if (canBlackCastleLeftSide(prevSqrIndex, draggedPiece, boardIndex)) {
+            isCastle = true;
+            blackLeftSideCastle();
+            whiteTurn = !whiteTurn;
+            playStockFishMove = false;
+            audio.playAudio(audio.sound.move);
+            castleMoveMade = true;
+        }
+
+        if (!castleMoveMade && draggedPiece !== null && possibleSqres.length > 0) {
+            let isCapture = board.boardArr[boardIndex] == 0 ? false : true;
+            
+            if (possibleSqres.includes(boardIndex)) {
+                capturedPiece = board.boardArr[boardIndex] !== 0 ? board.boardArr[boardIndex] : 0;
+                board.boardArr[boardIndex] = draggedPiece;
+                board.boardArr[prevSqrIndex] = 0;
+         
+                whiteTurn = !whiteTurn;
+                halfMoveCount++;
+                fullMoveCount = roundToWhole(halfMoveCount / 2);
+
+                if (whiteTurn == false) playStockFishMove = true;
+                else playStockFishMove = false;
+
+                if (board.boardArr[boardIndex][1] == 'P') {
+                    pawnsThatHaveMovedPastOnce.push(boardIndex);
+                }
+                checkWhiteRightCastleLegality(prevSqrIndex, draggedPiece);
+                checkWhiteLeftCastleLegality(prevSqrIndex, draggedPiece);
+                checkBlackRightCastleLegality(prevSqrIndex, draggedPiece);
+                checkBlackLeftCastleLegality(prevSqrIndex, draggedPiece);
+
+                findWhiteDangerSqrs();
+                findBlackDangerSqrs();
+
+                if (whiteTurn == false) {
+                     if(getPossibleMoves(draggedPiece, boardIndex).includes(board.boardArr.indexOf('bK'))) {
+                        if(isCheck == false) isCheck = true;
+                    } else {
+                        isCheck = false;
+                    }
+                    
+                    if (whiteDangerSqrs.includes(board.boardArr.indexOf('wK'))) {
+                        board.boardArr[prevSqrIndex] = draggedPiece;
+                        board.boardArr[boardIndex] = capturedPiece;
+                        whiteTurn = !whiteTurn;
+                        halfMoveCount--;
+                        fullMoveCount = roundToWhole(halfMoveCount / 2);
+                    }
+                } else {
+                    playStockFishMove = false;
+                    if (blackDangerSqrs.includes(board.boardArr.indexOf('bK'))) {
+                        board.boardArr[prevSqrIndex] = draggedPiece;
+                        board.boardArr[boardIndex] = capturedPiece;
+                        whiteTurn = !whiteTurn;
+                        halfMoveCount--;
+                        fullMoveCount = roundToWhole(halfMoveCount / 2);
+                    }
+                }
+
+                if(isCheck == false) {
+                    if (isCapture) audio.playAudio(audio.sound.capture);
+                    else audio.playAudio(audio.sound.move);
+                } else {
+                    audio.playAudio(audio.sound.check);
+                }
+            }
+        }
+
+        // Reset click mode
+        selectedPieceIndex = null;
+        selectedPieceType = null;
+        possibleSqres = [];
+        draggedPiece = null;
+        prevSqrIndex = null;
+        isClickMode = false;
+
+        ctx.clearRect(0, 0, cvs.width, cvs.height);
+        update();
     }
 
     function handleUp(e) {
         isDown = false;
         isUp = true;
+
+        if (isClickMode) {
+            return; // Click mode handles moves differently
+        }
 
         const rect = cvs.getBoundingClientRect();
         let mouseX, mouseY;
