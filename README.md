@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://lordlolqdh.github.io/FreeChess/"><img src="https://img.shields.io/badge/PLAY%20NOW-FreeChess-000000?style=for-the-badge&logo=chess.com&logoColor=white" alt="Play Now"></a>
+  <a href="https://lordlolqdh.github.io/FreeChess.org/"><img src="https://img.shields.io/badge/PLAY%20NOW-FreeChess-000000?style=for-the-badge&logo=chess.com&logoColor=white" alt="Play Now"></a>
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 ### 🚀 Live Demo
 
-**https://lordlolqdh.github.io/FreeChess/**
+**https://lordlolqdh.github.io/FreeChess.org/**
 
 ### ✨ Features
 
