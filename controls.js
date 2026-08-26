@@ -1,4 +1,3 @@
-// controls
 const stockfishAi = new Stockfish();
 
 let isDrag = false;
@@ -8,7 +7,7 @@ let isUp = true;
 let possibleSqres = [];
 let prevSqrIndex = null;
 let draggedPiece = null;
-let capturedPiece = 0; // it's 0 not null cause it will be applied to board.boardArr
+let capturedPiece = 0;
 
 let isStoreSqr = true;
 
@@ -22,103 +21,106 @@ sprite.onload = () => {
     update();
     drawBoard();
 
-    // Unified handler for both mouse and touch
     function handleDown(e) {
         isDown = true;
         isUp = false;
 
         const rect = cvs.getBoundingClientRect();
-        let mouseX, mouseY;
+        const mouseX = e.touches
+            ? e.touches[0].clientX - rect.left
+            : e.clientX - rect.left;
+        const mouseY = e.touches
+            ? e.touches[0].clientY - rect.top
+            : e.clientY - rect.top;
 
-        if (e.touches) {
-            // Touch event
-            mouseX = e.touches[0].clientX - rect.left;
-            mouseY = e.touches[0].clientY - rect.top;
-        } else {
-            // Mouse event
-            mouseX = e.clientX - rect.left;
-            mouseY = e.clientY - rect.top;
-        }
+        const boardIndex = getBoardIndex(mouseX, mouseY);
+        const piece = board.boardArr[boardIndex];
 
-        let boardIndex = getBoardIndex(mouseX, mouseY);
-
-        // Check if user clicked on a piece
-        if (board.boardArr[boardIndex] !== 0 && (whiteTurn && board.boardArr[boardIndex].startsWith('w')) || (whiteTurn == false && board.boardArr[boardIndex].startsWith('b'))) {
-            // Click-Mode: First click on piece
+        // Clicked on a piece
+        if (
+            piece !== 0 &&
+            ((whiteTurn && piece.startsWith('w')) ||
+                (!whiteTurn && piece.startsWith('b')))
+        ) {
             if (selectedPieceIndex === null) {
                 selectedPieceIndex = boardIndex;
-                selectedPieceType = board.boardArr[boardIndex];
-                possibleSqres = getPossibleMoves(selectedPieceType, selectedPieceIndex);
-                
+                selectedPieceType = piece;
+                possibleSqres = getPossibleMoves(piece, boardIndex);
+
                 ctx.clearRect(0, 0, cvs.width, cvs.height);
                 update();
                 highlight(possibleSqres);
+
                 isClickMode = true;
             } else if (selectedPieceIndex === boardIndex) {
-                // Click on same piece again = deselect
                 selectedPieceIndex = null;
                 selectedPieceType = null;
                 possibleSqres = [];
+
                 ctx.clearRect(0, 0, cvs.width, cvs.height);
                 update();
+
                 isClickMode = false;
             } else {
-                // Click on different piece = select new piece
                 selectedPieceIndex = boardIndex;
-                selectedPieceType = board.boardArr[boardIndex];
-                possibleSqres = getPossibleMoves(selectedPieceType, selectedPieceIndex);
-                
+                selectedPieceType = piece;
+                possibleSqres = getPossibleMoves(piece, boardIndex);
+
                 ctx.clearRect(0, 0, cvs.width, cvs.height);
                 update();
                 highlight(possibleSqres);
             }
+
             return;
         }
 
-        // If a piece is already selected, this click is a destination
+        // A piece is already selected → click destination
         if (selectedPieceIndex !== null) {
             handleClickMove(boardIndex);
             return;
         }
 
-        // Drag-Mode logic
-        board.boardArr.forEach((sqr, i) => {
-            if (sqr !== 0 && i == boardIndex) {
+        // Drag mode
+        if (
+            piece !== 0 &&
+            ((whiteTurn && piece.startsWith('w')) ||
+                (!whiteTurn && piece.startsWith('b')))
+        ) {
+            board.boardArr[boardIndex] = 0;
 
-                if ((whiteTurn && sqr.startsWith('w')) || (whiteTurn == false && sqr.startsWith('b'))) {
-                    board.boardArr[i] = 0;
-                    draggedPiece = sqr;
-                    prevSqrIndex = i;
+            draggedPiece = piece;
+            prevSqrIndex = boardIndex;
+            isStoreSqr = false;
 
-                    isStoreSqr = false;
-                    possibleSqres = getPossibleMoves(sqr, i);
+            possibleSqres = getPossibleMoves(piece, boardIndex);
 
-                    update();
-                    highlight(possibleSqres);
-                }
-            }
-        })
+            update();
+            highlight(possibleSqres);
+        }
     }
 
     function handleMove(e) {
         const rect = cvs.getBoundingClientRect();
-        let mouseX, mouseY;
-
-        if (e.touches) {
-            // Touch event
-            mouseX = e.touches[0].clientX - rect.left;
-            mouseY = e.touches[0].clientY - rect.top;
-        } else {
-            // Mouse event
-            mouseX = e.clientX - rect.left;
-            mouseY = e.clientY - rect.top;
-        }
+        const mouseX = e.touches
+            ? e.touches[0].clientX - rect.left
+            : e.clientX - rect.left;
+        const mouseY = e.touches
+            ? e.touches[0].clientY - rect.top
+            : e.clientY - rect.top;
 
         if (isDown && draggedPiece !== null) {
             ctx.clearRect(0, 0, cvs.width, cvs.height);
+
             update();
             highlight(possibleSqres);
-            pieces.drawPiece(pieces.type[draggedPiece], [{ x: mouseX - pieces.pieceScale / 2, y: mouseY - pieces.pieceScale / 2 }]);
+
+            pieces.drawPiece(
+                pieces.type[draggedPiece],
+                [{
+                    x: mouseX - pieces.pieceScale / 2,
+                    y: mouseY - pieces.pieceScale / 2
+                }]
+            );
         }
     }
 
@@ -127,7 +129,6 @@ sprite.onload = () => {
             return;
         }
 
-        let boardIndex = destinationIndex;
         prevSqrIndex = selectedPieceIndex;
         draggedPiece = selectedPieceType;
 
@@ -136,8 +137,7 @@ sprite.onload = () => {
 
         let castleMoveMade = false;
 
-        // check for castling movement and if it is, allow castling
-        if (canWhiteCastleRightSide(prevSqrIndex, draggedPiece, boardIndex)) {
+        if (canWhiteCastleRightSide(prevSqrIndex, draggedPiece, destinationIndex)) {
             isCastle = true;
             whiteRightSideCastle();
             whiteTurn = !whiteTurn;
@@ -145,7 +145,8 @@ sprite.onload = () => {
             audio.playAudio(audio.sound.move);
             castleMoveMade = true;
         }
-        if (canWhiteCastleLeftSide(prevSqrIndex, draggedPiece, boardIndex)) {
+
+        if (canWhiteCastleLeftSide(prevSqrIndex, draggedPiece, destinationIndex)) {
             isCastle = true;
             whiteLeftSideCastle();
             whiteTurn = !whiteTurn;
@@ -153,7 +154,8 @@ sprite.onload = () => {
             audio.playAudio(audio.sound.move);
             castleMoveMade = true;
         }
-        if (canBlackCastleRightSide(prevSqrIndex, draggedPiece, boardIndex)) {
+
+        if (canBlackCastleRightSide(prevSqrIndex, draggedPiece, destinationIndex)) {
             isCastle = true;
             blackRightSideCastle();
             whiteTurn = !whiteTurn;
@@ -161,7 +163,8 @@ sprite.onload = () => {
             audio.playAudio(audio.sound.move);
             castleMoveMade = true;
         }
-        if (canBlackCastleLeftSide(prevSqrIndex, draggedPiece, boardIndex)) {
+
+        if (canBlackCastleLeftSide(prevSqrIndex, draggedPiece, destinationIndex)) {
             isCastle = true;
             blackLeftSideCastle();
             whiteTurn = !whiteTurn;
@@ -170,67 +173,81 @@ sprite.onload = () => {
             castleMoveMade = true;
         }
 
-        if (!castleMoveMade && draggedPiece !== null && possibleSqres.length > 0) {
-            let isCapture = board.boardArr[boardIndex] == 0 ? false : true;
-            
-            if (possibleSqres.includes(boardIndex)) {
-                capturedPiece = board.boardArr[boardIndex] !== 0 ? board.boardArr[boardIndex] : 0;
-                board.boardArr[boardIndex] = draggedPiece;
-                board.boardArr[prevSqrIndex] = 0;
-         
-                whiteTurn = !whiteTurn;
-                halfMoveCount++;
-                fullMoveCount = roundToWhole(halfMoveCount / 2);
+        if (
+            !castleMoveMade &&
+            draggedPiece !== null &&
+            possibleSqres.length > 0 &&
+            possibleSqres.includes(destinationIndex)
+        ) {
+            const isCapture = board.boardArr[destinationIndex] !== 0;
 
-                if (whiteTurn == false) playStockFishMove = true;
-                else playStockFishMove = false;
+            capturedPiece =
+                board.boardArr[destinationIndex] !== 0
+                    ? board.boardArr[destinationIndex]
+                    : 0;
 
-                if (board.boardArr[boardIndex][1] == 'P') {
-                    pawnsThatHaveMovedPastOnce.push(boardIndex);
-                }
-                checkWhiteRightCastleLegality(prevSqrIndex, draggedPiece);
-                checkWhiteLeftCastleLegality(prevSqrIndex, draggedPiece);
-                checkBlackRightCastleLegality(prevSqrIndex, draggedPiece);
-                checkBlackLeftCastleLegality(prevSqrIndex, draggedPiece);
+            board.boardArr[destinationIndex] = draggedPiece;
+            board.boardArr[prevSqrIndex] = 0;
 
-                findWhiteDangerSqrs();
-                findBlackDangerSqrs();
+            whiteTurn = !whiteTurn;
 
-                if (whiteTurn == false) {
-                     if(getPossibleMoves(draggedPiece, boardIndex).includes(board.boardArr.indexOf('bK'))) {
-                        if(isCheck == false) isCheck = true;
-                    } else {
-                        isCheck = false;
-                    }
-                    
-                    if (whiteDangerSqrs.includes(board.boardArr.indexOf('wK'))) {
-                        board.boardArr[prevSqrIndex] = draggedPiece;
-                        board.boardArr[boardIndex] = capturedPiece;
-                        whiteTurn = !whiteTurn;
-                        halfMoveCount--;
-                        fullMoveCount = roundToWhole(halfMoveCount / 2);
-                    }
+            halfMoveCount++;
+            fullMoveCount = roundToWhole(halfMoveCount / 2);
+
+            playStockFishMove = !whiteTurn;
+
+            if (board.boardArr[destinationIndex][1] === 'P') {
+                pawnsThatHaveMovedPastOnce.push(destinationIndex);
+            }
+
+            checkWhiteRightCastleLegality(prevSqrIndex, draggedPiece);
+            checkWhiteLeftCastleLegality(prevSqrIndex, draggedPiece);
+            checkBlackRightCastleLegality(prevSqrIndex, draggedPiece);
+            checkBlackLeftCastleLegality(prevSqrIndex, draggedPiece);
+
+            findWhiteDangerSqrs();
+            findBlackDangerSqrs();
+
+            if (!whiteTurn) {
+                if (
+                    getPossibleMoves(draggedPiece, destinationIndex)
+                        .includes(board.boardArr.indexOf('bK'))
+                ) {
+                    isCheck = true;
                 } else {
-                    playStockFishMove = false;
-                    if (blackDangerSqrs.includes(board.boardArr.indexOf('bK'))) {
-                        board.boardArr[prevSqrIndex] = draggedPiece;
-                        board.boardArr[boardIndex] = capturedPiece;
-                        whiteTurn = !whiteTurn;
-                        halfMoveCount--;
-                        fullMoveCount = roundToWhole(halfMoveCount / 2);
-                    }
+                    isCheck = false;
                 }
 
-                if(isCheck == false) {
-                    if (isCapture) audio.playAudio(audio.sound.capture);
-                    else audio.playAudio(audio.sound.move);
-                } else {
-                    audio.playAudio(audio.sound.check);
+                if (whiteDangerSqrs.includes(board.boardArr.indexOf('wK'))) {
+                    board.boardArr[prevSqrIndex] = draggedPiece;
+                    board.boardArr[destinationIndex] = capturedPiece;
+
+                    whiteTurn = !whiteTurn;
+                    halfMoveCount--;
+                    fullMoveCount = roundToWhole(halfMoveCount / 2);
                 }
+            } else {
+                playStockFishMove = false;
+
+                if (blackDangerSqrs.includes(board.boardArr.indexOf('bK'))) {
+                    board.boardArr[prevSqrIndex] = draggedPiece;
+                    board.boardArr[destinationIndex] = capturedPiece;
+
+                    whiteTurn = !whiteTurn;
+                    halfMoveCount--;
+                    fullMoveCount = roundToWhole(halfMoveCount / 2);
+                }
+            }
+
+            if (isCheck) {
+                audio.playAudio(audio.sound.check);
+            } else if (isCapture) {
+                audio.playAudio(audio.sound.capture);
+            } else {
+                audio.playAudio(audio.sound.move);
             }
         }
 
-        // Reset click mode
         selectedPieceIndex = null;
         selectedPieceType = null;
         possibleSqres = [];
@@ -247,29 +264,24 @@ sprite.onload = () => {
         isUp = true;
 
         if (isClickMode) {
-            return; // Click mode handles moves differently
+            return;
         }
 
         const rect = cvs.getBoundingClientRect();
-        let mouseX, mouseY;
+        const mouseX = e.changedTouches
+            ? e.changedTouches[0].clientX - rect.left
+            : e.clientX - rect.left;
+        const mouseY = e.changedTouches
+            ? e.changedTouches[0].clientY - rect.top
+            : e.clientY - rect.top;
 
-        if (e.changedTouches) {
-            // Touch event
-            mouseX = e.changedTouches[0].clientX - rect.left;
-            mouseY = e.changedTouches[0].clientY - rect.top;
-        } else {
-            // Mouse event
-            mouseX = e.clientX - rect.left;
-            mouseY = e.clientY - rect.top;
-        }
+        const boardIndex = getBoardIndex(mouseX, mouseY);
 
-        let boardIndex = getBoardIndex(mouseX, mouseY);
-
-        // ---- utility functions ----- //
         function reverseMovement() {
             board.boardArr[prevSqrIndex] = draggedPiece;
             board.boardArr[boardIndex] = capturedPiece;
-            whiteTurn = draggedPiece[0] == 'w' ? true : false;
+
+            whiteTurn = draggedPiece[0] === 'w';
             halfMoveCount--;
             fullMoveCount = roundToWhole(halfMoveCount / 2);
             playStockFishMove = false;
@@ -279,132 +291,150 @@ sprite.onload = () => {
             draggedPiece = null;
             possibleSqres = [];
         }
-        // --------------------------- //
 
         whiteDangerSqrs = [];
         blackDangerSqrs = [];
 
         let castleMoveMade = false;
 
-        // check for castling movement and if it is, allow castling
         if (canWhiteCastleRightSide(prevSqrIndex, draggedPiece, boardIndex)) {
             isCastle = true;
             whiteRightSideCastle();
             resetMovement();
+
             whiteTurn = !whiteTurn;
             playStockFishMove = true;
+
             audio.playAudio(audio.sound.move);
             castleMoveMade = true;
         }
+
         if (canWhiteCastleLeftSide(prevSqrIndex, draggedPiece, boardIndex)) {
             isCastle = true;
             whiteLeftSideCastle();
             resetMovement();
+
             whiteTurn = !whiteTurn;
             playStockFishMove = true;
+
             audio.playAudio(audio.sound.move);
             castleMoveMade = true;
         }
+
         if (canBlackCastleRightSide(prevSqrIndex, draggedPiece, boardIndex)) {
             isCastle = true;
             blackRightSideCastle();
             resetMovement();
+
             whiteTurn = !whiteTurn;
             playStockFishMove = false;
+
             audio.playAudio(audio.sound.move);
             castleMoveMade = true;
         }
+
         if (canBlackCastleLeftSide(prevSqrIndex, draggedPiece, boardIndex)) {
             isCastle = true;
             blackLeftSideCastle();
             resetMovement();
+
             whiteTurn = !whiteTurn;
             playStockFishMove = false;
+
             audio.playAudio(audio.sound.move);
             castleMoveMade = true;
         }
-        // -------------------------------------------------------- //
 
-        // once we release our piece we want to get its new location and chage it
-        // update the boardArr data and update the game
-        if (!castleMoveMade && draggedPiece !== null && possibleSqres.length > 0) {
-            let isCapture = board.boardArr[boardIndex] == 0 ? false : true;
-            for (let i = 0; i < possibleSqres.length; i++) {
-                if (boardIndex == possibleSqres[i]) {
-                    capturedPiece = board.boardArr[boardIndex] !== 0 ? board.boardArr[boardIndex] : 0; // if we captured a piece
-                    board.boardArr[boardIndex] = draggedPiece;
-                    board.boardArr[prevSqrIndex] = 0;
-             
-                    whiteTurn = !whiteTurn; // switch turns
-                    halfMoveCount++;
-                    fullMoveCount = roundToWhole(halfMoveCount / 2);
+        if (
+            !castleMoveMade &&
+            draggedPiece !== null &&
+            possibleSqres.length > 0
+        ) {
+            const isCapture = board.boardArr[boardIndex] !== 0;
 
+            if (possibleSqres.includes(boardIndex)) {
+                capturedPiece =
+                    board.boardArr[boardIndex] !== 0
+                        ? board.boardArr[boardIndex]
+                        : 0;
 
-                    if (whiteTurn == false) playStockFishMove = true;
-                    else playStockFishMove = false;
+                board.boardArr[boardIndex] = draggedPiece;
+                board.boardArr[prevSqrIndex] = 0;
 
-                    if (board.boardArr[boardIndex][1] == 'P') { // if it's a pawn
-                        pawnsThatHaveMovedPastOnce.push(boardIndex); // add it to the list of pawns moved more than once
-                    }
-                    // check for castling legality with every king or rook movement!
-                    checkWhiteRightCastleLegality(prevSqrIndex, draggedPiece);
-                    checkWhiteLeftCastleLegality(prevSqrIndex, draggedPiece);
-                    checkBlackRightCastleLegality(prevSqrIndex, draggedPiece);
-                    checkBlackLeftCastleLegality(prevSqrIndex, draggedPiece);
+                whiteTurn = !whiteTurn;
 
-                    // check if the king is on check
-                    findWhiteDangerSqrs();
-                    findBlackDangerSqrs();
+                halfMoveCount++;
+                fullMoveCount = roundToWhole(halfMoveCount / 2);
 
-                    if (whiteTurn == false) {
-                         // find out if the move the human made is a check
-                        if(getPossibleMoves(draggedPiece, boardIndex).includes(board.boardArr.indexOf('bK'))) {
-                            if(isCheck == false) isCheck = true;
-                        } else {
-                            isCheck = false;
-                        }
-                        //
-                        if (whiteDangerSqrs.includes(board.boardArr.indexOf('wK'))) { // if the current square of the wK is among the danger squares
-                            reverseMovement(); // reverse the movement until they have resolved the check
-                        }
+                playStockFishMove = !whiteTurn;
+
+                if (board.boardArr[boardIndex][1] === 'P') {
+                    pawnsThatHaveMovedPastOnce.push(boardIndex);
+                }
+
+                checkWhiteRightCastleLegality(prevSqrIndex, draggedPiece);
+                checkWhiteLeftCastleLegality(prevSqrIndex, draggedPiece);
+                checkBlackRightCastleLegality(prevSqrIndex, draggedPiece);
+                checkBlackLeftCastleLegality(prevSqrIndex, draggedPiece);
+
+                findWhiteDangerSqrs();
+                findBlackDangerSqrs();
+
+                if (!whiteTurn) {
+                    if (
+                        getPossibleMoves(draggedPiece, boardIndex)
+                            .includes(board.boardArr.indexOf('bK'))
+                    ) {
+                        isCheck = true;
                     } else {
-                        playStockFishMove = false;
-                        if (blackDangerSqrs.includes(board.boardArr.indexOf('bK'))) { // if the current square of the bK is among the danger squares
-                            reverseMovement(); // reverse the movement until they have resolved the check
-                        }
+                        isCheck = false;
                     }
 
-                    // play the right audios
-                    if(isCheck == false) {
-                        if (isCapture) audio.playAudio(audio.sound.capture);
-                        else audio.playAudio(audio.sound.move);
-                    } else {
-                        audio.playAudio(audio.sound.check);
+                    if (
+                        whiteDangerSqrs.includes(
+                            board.boardArr.indexOf('wK')
+                        )
+                    ) {
+                        reverseMovement();
+                    }
+                } else {
+                    playStockFishMove = false;
+
+                    if (
+                        blackDangerSqrs.includes(
+                            board.boardArr.indexOf('bK')
+                        )
+                    ) {
+                        reverseMovement();
                     }
                 }
-            }
-            // if the square were trying to move to isnt part of the possibleMoves
-            // we move back to the prev square
-            if (!possibleSqres.includes(boardIndex)) {
+
+                if (isCheck) {
+                    audio.playAudio(audio.sound.check);
+                } else if (isCapture) {
+                    audio.playAudio(audio.sound.capture);
+                } else {
+                    audio.playAudio(audio.sound.move);
+                }
+            } else {
                 board.boardArr[prevSqrIndex] = draggedPiece;
             }
+
             resetMovement();
-        } else if (draggedPiece !== null && possibleSqres.length <= 0) { // if there are no squares to move to
+        } else if (draggedPiece !== null) {
             board.boardArr[prevSqrIndex] = draggedPiece;
             resetMovement();
         }
+
         ctx.clearRect(0, 0, cvs.width, cvs.height);
         update();
     }
 
-    // Mouse events
     document.addEventListener('mousedown', handleDown);
     document.addEventListener('mousemove', handleMove);
     document.addEventListener('mouseup', handleUp);
 
-    // Touch events
     document.addEventListener('touchstart', handleDown);
     document.addEventListener('touchmove', handleMove);
     document.addEventListener('touchend', handleUp);
-}
-
+};
