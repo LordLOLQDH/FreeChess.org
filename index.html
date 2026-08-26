@@ -9,39 +9,12 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="manifest" href="site.webmanifest">
     <style>
-        body {
-            background-color: black;
-            margin: 0;
-            padding: 0;
-        }
-        .board-cont {
-            position: relative;
-            top: -484px;
-        }
-        .board-cont div {
-            position: absolute;
-            /* animation: appear 1s ease-in-out 0s forwards; */
-        }
-        @keyframes appear {
-            from {
-               transform: scale(0);
-            } 
-            to {
-               transform: scale(1);
-            }
-        }
-        .game--cont {
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-        }
-
-        .game canvas {
-            position: relative;
-            z-index: 999;
-        }
+        body { background-color: black; margin: 0; padding: 0; }
+        .board-cont { position: relative; top: -484px; }
+        .board-cont div { position: absolute; }
+        @keyframes appear { from { transform: scale(0); } to { transform: scale(1); } }
+        .game--cont { height: 100vh; display: flex; justify-content: center; align-items: center; position: relative; }
+        .game canvas { position: relative; z-index: 999; }
     </style>
     <title>FreeChess.org</title>
 </head>
@@ -52,15 +25,17 @@
             <div class="board-cont"></div>
         </div>
     </div>
-   
 
     <script src="general.js"></script>
     <script src="sound.js"></script>
+
+    <!-- Local browser Stockfish WASM engine. No external API/CORS request. -->
+    <script src="https://cdn.jsdelivr.net/npm/stockfish.wasm@0.10.0/stockfish.js"></script>
     <script src="stockfish.js"></script>
+
     <script src="board.js"></script>
     <script src="pieces.js"></script>
     <script src="utils.js"></script>
-    
     <script src="main.js"></script>
     <script src="controls.js"></script>
 </body>
