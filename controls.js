@@ -51,19 +51,14 @@ sprite.onload = () => {
                     isStoreSqr = false;
                     possibleSqres = getPossibleMoves(sqr, i); // store all possible squares to move
 
-                    highlight(possibleSqres); // highlight squares
-
+                    update();
+                    highlight(possibleSqres); // highlight squares AFTER update
                 }
             }
         })
-        update()
-        drawBoard()
     }
 
     function handleMove(e) {
-        ctx.clearRect(0, 0, cvs.width, cvs.height);
-        update();
-
         const rect = cvs.getBoundingClientRect();
         let mouseX, mouseY;
 
@@ -77,10 +72,11 @@ sprite.onload = () => {
             mouseY = e.clientY - rect.top;
         }
 
-        if (isDown) {
-            if (draggedPiece !== null) {
-                pieces.drawPiece(pieces.type[draggedPiece], [{ x: mouseX - pieces.pieceScale / 2, y: mouseY - pieces.pieceScale / 2 }]);
-            }
+        if (isDown && draggedPiece !== null) {
+            ctx.clearRect(0, 0, cvs.width, cvs.height);
+            update();
+            highlight(possibleSqres); // redraw highlights
+            pieces.drawPiece(pieces.type[draggedPiece], [{ x: mouseX - pieces.pieceScale / 2, y: mouseY - pieces.pieceScale / 2 }]);
         }
     }
 
@@ -231,6 +227,7 @@ sprite.onload = () => {
             board.boardArr[prevSqrIndex] = draggedPiece;
             resetMovement();
         }
+        ctx.clearRect(0, 0, cvs.width, cvs.height);
         update();
     }
 
